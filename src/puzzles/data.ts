@@ -1,4 +1,4 @@
-import { finalCode, hashTarget, rsaCipher, rsaN, rsaE, rsaD, powTarget, clues } from './logic.mjs';
+import { hashTarget, rsaCipher, rsaN, rsaE, rsaD, powTarget, clues } from './logic.mjs';
 export type Puzzle={title:string;scene:string;story:string;formula:string;instructions:string;hint:string;placeholder:string};
 export const puzzles:Puzzle[]=[
  {title:'維吉尼亞密碼',scene:'密文分析室',story:'備援終端機留下多字母替換密文，破解後才能取得第一道門的權限。',formula:'密文：FESVX　｜　金鑰：KEY（重複為 KEYKE）',instructions:'A=0 至 Z=25；逐字解密 Pᵢ=(Cᵢ−Kᵢ) mod 26。輸入五個英文字母。',hint:'第一個字母：F=5，K=10，(5−10) mod 26=21，得到 V。',placeholder:'輸入五個英文字母'},
