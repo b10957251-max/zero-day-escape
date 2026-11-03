@@ -2,15 +2,46 @@ import Phaser from 'phaser';
 import {rooms} from './rooms';
 import {WIDTH,HEIGHT,walls,blocked,placements,start,terminal,exit} from './layout';
 export type Direction='left'|'right'|'up'|'down';
-export type WorldHandle={destroy:()=>void;setRoom:(n:number)=>void;setLocked:(v:boolean)=>void;setProgress:(v:boolean,s:string[])=>void;setProfile:(gender:string,seed:number)=>void;playEscape:(done:()=>void)=>void;interact:()=>void;left:(v:boolean)=>void;right:(v:boolean)=>void;up:(v:boolean)=>void;down:(v:boolean)=>void};
+export type WorldHandle={destroy:()=>void;setRoom:(n:number)=>void;setLocked:(v:boolean)=>void;setProgress:(v:boolean,s:string[])=>void;setProfile:(gender:string,seed:number)=>void;playEscape:(done:()=>void)=>void;resetEscape:()=>void;interact:()=>void;left:(v:boolean)=>void;right:(v:boolean)=>void;up:(v:boolean)=>void;down:(v:boolean)=>void};
 export function createWorld(container:HTMLElement,onInteract:(id:string)=>void,onNear:(name:string)=>void):WorldHandle{
  let room=0,locked=true,solved=false,seed=1,gender='male',seen:string[]=[],active:Lab|undefined;
+ // A non-interactive HUD overlay: only required objectives, decoder and exit appear.
+ const mapCanvas=document.createElement('canvas');
+ mapCanvas.width=440;mapCanvas.height=344;
+ mapCanvas.setAttribute('aria-label','小地圖：僅顯示玩家、破譯機台及安全門');
+ mapCanvas.style.cssText='position:absolute;top:12px;right:12px;width:min(210px,37vw);height:auto;z-index:15;pointer-events:none;border-radius:12px;box-shadow:0 5px 20px #0008;';
+ const priorPosition=container.style.position;
+ if(getComputedStyle(container).position==='static')container.style.position='relative';
+ container.appendChild(mapCanvas);
+ const ctx=mapCanvas.getContext('2d');
+ let lastMapPaint=0;
+ const paintMap=()=>{
+  if(!ctx||!active)return;
+  const w=mapCanvas.width,h=mapCanvas.height,pad=17,top=48,sx=(w-2*pad)/WIDTH,sy=(h-top-pad)/HEIGHT;
+  ctx.clearRect(0,0,w,h);ctx.fillStyle='rgba(6,19,30,.93)';ctx.fillRect(0,0,w,h);
+  ctx.fillStyle='#b9e8e3';ctx.font='bold 23px system-ui';ctx.fillText('地圖  '+String(room+1).padStart(2,'0')+' / 05',pad,31);
+  ctx.fillStyle='#122e3b';ctx.fillRect(pad,top,w-pad*2,h-top-pad);
+  ctx.strokeStyle='#527581';ctx.lineWidth=2;ctx.strokeRect(pad,top,w-pad*2,h-top-pad);
+  ctx.fillStyle='#55717e';for(const wall of walls(room))ctx.fillRect(pad+wall.x*sx,top+wall.y*sy,Math.max(2,wall.w*sx),Math.max(2,wall.h*sy));
+  const marker=(x:number,y:number,color:string,r:number)=>{ctx.beginPath();ctx.arc(pad+x*sx,top+y*sy,r,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();ctx.strokeStyle='#06131d';ctx.lineWidth=2;ctx.stroke()};
+  for(const point of active.points){
+   if(point.kind==='terminal')marker(point.x,point.y,'#59c8ff',7);
+   else if(point.kind==='door')marker(point.x,point.y,solved?'#67e8a3':'#ffb66e',8);
+  }
+  marker(active.player.x,active.player.y,'#ffffff',8);
+  // Legend: only player, decoder terminal, and safety door are visible.
+  ctx.font='16px system-ui';ctx.fillStyle='#d3e2e5';ctx.fillText('● 玩家      ● 破譯機台      ● 安全門',pad,h-3);
+  ctx.fillStyle='#ffffff';ctx.fillRect(pad+1,h-16,7,7);
+  ctx.fillStyle='#59c8ff';ctx.fillRect(pad+110,h-16,7,7);
+  ctx.fillStyle=solved?'#67e8a3':'#ffb66e';ctx.fillRect(pad+263,h-16,7,7);
+ };
+
  const held={left:false,right:false,up:false,down:false};
  const interact=()=>{if(!locked&&active?.target)onInteract(active.target)};
  class Lab extends Phaser.Scene{
- bg!:Phaser.GameObjects.Graphics;player!:Phaser.GameObjects.Container;avatar!:Phaser.GameObjects.Graphics;prompt!:Phaser.GameObjects.Text;keys!:Record<string,Phaser.Input.Keyboard.Key>;target='';labels:Phaser.GameObjects.Text[]=[];points:{id:string;name:string;x:number;y:number;kind:string}[]=[];
+ bg!:Phaser.GameObjects.Graphics;player!:Phaser.GameObjects.Container;avatar!:Phaser.GameObjects.Graphics;prompt!:Phaser.GameObjects.Text;keys!:Record<string,Phaser.Input.Keyboard.Key>;target='';escapeToken=0;escapeObjects:Phaser.GameObjects.GameObject[]=[];labels:Phaser.GameObjects.Text[]=[];points:{id:string;name:string;x:number;y:number;kind:string}[]=[];
  constructor(){super('lab')}
- create(){active=this;this.bg=this.add.graphics();this.player=this.add.container(start.x,start.y).setDepth(10);this.avatar=this.add.graphics();this.player.add(this.avatar);this.prompt=this.add.text(0,0,'',{fontFamily:'system-ui',fontSize:'17px',color:'#faf2da',backgroundColor:'#09131eea',padding:{x:15,y:10}}).setOrigin(.5,1).setDepth(20);this.keys=this.input.keyboard!.addKeys('LEFT,RIGHT,UP,DOWN,A,D,W,S,E') as Record<string,Phaser.Input.Keyboard.Key>;this.input.keyboard!.on('keydown-E',interact);this.input.keyboard!.enabled=!locked;this.cameras.main.setBounds(0,0,WIDTH,HEIGHT);this.cameras.main.startFollow(this.player,true,.12,.12);this.scale.on('resize',()=>this.resize());this.input.on('pointerdown',(pointer:Phaser.Input.Pointer)=>{if(locked)return;const w=this.cameras.main.getWorldPoint(pointer.x,pointer.y);const point=this.points.find(p=>Math.hypot(p.x-w.x,p.y-w.y)<65);if(point&&Math.hypot(point.x-this.player.x,point.y-this.player.y)<155){this.target=point.id;onNear(point.name);onInteract(point.id)}});this.resize();this.drawRoom();this.drawPlayer();}
+ create(){active=this;this.bg=this.add.graphics();this.player=this.add.container(start.x,start.y).setDepth(10);this.avatar=this.add.graphics();this.player.add(this.avatar);this.prompt=this.add.text(0,0,'',{fontFamily:'system-ui',fontSize:'17px',color:'#faf2da',backgroundColor:'#09131eea',padding:{x:15,y:10}}).setOrigin(.5,1).setDepth(20);this.keys=this.input.keyboard!.addKeys('LEFT,RIGHT,UP,DOWN,A,D,W,S,E') as Record<string,Phaser.Input.Keyboard.Key>;this.input.keyboard!.on('keydown-E',interact);this.input.keyboard!.enabled=!locked;this.cameras.main.setBounds(0,0,WIDTH,HEIGHT);this.cameras.main.startFollow(this.player,true,.12,.12);this.scale.on('resize',()=>this.resize());this.input.on('pointerdown',(pointer:Phaser.Input.Pointer)=>{if(locked)return;const w=this.cameras.main.getWorldPoint(pointer.x,pointer.y);const point=this.points.find(p=>Math.hypot(p.x-w.x,p.y-w.y)<65);if(point&&Math.hypot(point.x-this.player.x,point.y-this.player.y)<155){this.target=point.id;onNear(point.name);onInteract(point.id)}});this.resize();this.drawRoom();this.drawPlayer();paintMap();}
  resize(){this.cameras.main.setZoom(this.scale.width<700?1.05:1.15)}
  drawPlayer(){const g=this.avatar;g.clear();g.fillStyle(0x000000,.3);g.fillEllipse(2,18,48,22);g.fillStyle(0x152538);g.fillRoundedRect(-17,2,13,28,4);g.fillRoundedRect(5,2,13,28,4);g.fillStyle(gender==='female'?0xb1c5d8:0x7aa9a9);g.fillRoundedRect(-24,-33,48,44,10);g.fillStyle(0x233b50);g.fillRoundedRect(-16,-25,32,23,4);g.fillStyle(0xeac3a1);g.fillRoundedRect(-16,-62,32,32,9);g.fillStyle(0x292334);if(gender==='female'){g.fillRoundedRect(-21,-68,42,18,8);g.fillRoundedRect(-23,-58,10,39,5);g.fillRoundedRect(14,-58,10,39,5)}else g.fillRoundedRect(-18,-66,36,12,5);g.fillStyle(0x243743);g.fillRect(-13,-50,26,7);g.fillStyle(0xeac3a1);g.fillRoundedRect(-30,-25,9,29,4);g.fillRoundedRect(22,-25,9,29,4);g.fillStyle(0xf6c978);g.fillCircle(15,-18,3)}
  drawRoom(){const g=this.bg,r=rooms[room];this.labels.forEach(l=>l.destroy());this.labels=[];g.clear();const floor=[0x293238,0x172e3c,0x292d40,0x35322c,0x1d3536][room];g.fillStyle(floor);g.fillRect(0,0,WIDTH,HEIGHT);
@@ -56,13 +87,29 @@ export function createWorld(container:HTMLElement,onInteract:(id:string)=>void,o
  else{g.fillStyle(0x726450);g.fillRoundedRect(x-38,y-26,76,59,6);g.fillStyle(0x9d8e71);g.fillRect(x-40,y-32,80,18);g.fillStyle(0x424341);g.fillRect(x-9,y-5,18,8);g.fillStyle(0xc2b698);g.fillRect(x-24,y-25,29,6)}
  if(seen.includes(s.id)){this.labels.push(this.add.text(x+30,y+43,'✓',{fontSize:'18px',color:'#b9c5bf'}))}
  }
+ paintMap();
+ }
+ resetEscape(){
+  this.escapeToken++;
+  this.time.removeAllEvents();
+  this.tweens.killAll();
+  for(const obj of this.escapeObjects)obj.destroy();
+  this.escapeObjects=[];
+  this.cameras.main.resetFX();
+  this.cameras.main.setZoom(this.scale.width<700?1.05:1.15);
+  this.cameras.main.startFollow(this.player,true,.12,.12);
+  this.prompt.setVisible(false);
+  this.target='';
  }
  playEscape(done:()=>void){
+  this.resetEscape();
+  const token=this.escapeToken;
   this.target='';this.prompt.setVisible(false);
   this.cameras.main.stopFollow();this.cameras.main.pan(exit.x,exit.y,1250,'Sine.easeInOut');
   this.cameras.main.zoomTo(1.48,1350);
   const gate=this.add.graphics().setDepth(40);const glow=this.add.graphics().setDepth(39);
   const status=this.add.text(exit.x,exit.y-195,'ACCESS GRANTED  //  EXIT UNLOCKED',{fontFamily:'monospace',fontSize:'26px',color:'#a9ffe3',backgroundColor:'#061720dd',padding:{x:18,y:10}}).setOrigin(.5).setDepth(45);
+  this.escapeObjects.push(gate,glow,status);
   const state={opening:0};
   const paint=()=>{gate.clear();glow.clear();glow.fillStyle(0x83fff1,.20+state.opening*.50);glow.fillRect(exit.x-75,exit.y-95,150,210);
    gate.fillStyle(0x091b2b);gate.fillRoundedRect(exit.x-120,exit.y-130,240,260,14);
@@ -72,18 +119,18 @@ export function createWorld(container:HTMLElement,onInteract:(id:string)=>void,o
    gate.lineStyle(5,0x9bead1);gate.strokeRoundedRect(exit.x-120,exit.y-130,240,260,14);
   };paint();
   this.cameras.main.shake(350,.004);
-  this.time.delayedCall(1200,()=>{status.setText('VAULT PRESSURE RELEASED  //  OPENING');this.cameras.main.shake(900,.007);
-   this.tweens.add({targets:state,opening:1,duration:3000,ease:'Sine.easeInOut',onUpdate:paint,onComplete:()=>{
-    status.setText('ESCAPE ROUTE CLEAR  //  RUN!');this.tweens.add({targets:this.player,x:exit.x,y:exit.y,duration:1900,ease:'Sine.easeInOut',onComplete:()=>{
-     this.cameras.main.flash(950,224,255,246);this.time.delayedCall(1050,done);
+  this.time.delayedCall(1200,()=>{if(token!==this.escapeToken)return;status.setText('VAULT PRESSURE RELEASED  //  OPENING');this.cameras.main.shake(900,.007);
+   this.tweens.add({targets:state,opening:1,duration:3000,ease:'Sine.easeInOut',onUpdate:paint,onComplete:()=>{if(token!==this.escapeToken)return;
+    status.setText('ESCAPE ROUTE CLEAR  //  RUN!');this.tweens.add({targets:this.player,x:exit.x,y:exit.y,duration:1900,ease:'Sine.easeInOut',onComplete:()=>{if(token!==this.escapeToken)return;
+     this.cameras.main.flash(950,224,255,246);this.time.delayedCall(1050,()=>{if(token===this.escapeToken)done()});
     }});
    }});
   });
  }
  update(_t:number,delta:number){if(locked){this.target='';this.prompt.setVisible(false);return}const k=this.keys;let dx=Number(held.right||k.RIGHT.isDown||k.D.isDown)-Number(held.left||k.LEFT.isDown||k.A.isDown),dy=Number(held.down||k.DOWN.isDown||k.S.isDown)-Number(held.up||k.UP.isDown||k.W.isDown);const len=Math.hypot(dx,dy)||1;dx/=len;dy/=len;const step=330*Math.min(delta,45)/1000;const x=this.player.x,y=this.player.y;if(!blocked(x+dx*step,y,room))this.player.x+=dx*step;if(!blocked(this.player.x,y+dy*step,room))this.player.y+=dy*step;
- this.avatar.y=(dx||dy)?Math.sin(_t/95)*2:0;const p=this.points.reduce((a,b)=>Phaser.Math.Distance.Between(a.x,a.y,this.player.x,this.player.y)<Phaser.Math.Distance.Between(b.x,b.y,this.player.x,this.player.y)?a:b);this.target=Math.hypot(p.x-this.player.x,p.y-this.player.y)<155?p.id:'';onNear(this.target?p.name:'');this.prompt.setVisible(!!this.target).setPosition(p.x,p.y-87).setText(p.name+'  ·  E 互動');}
+ this.avatar.y=(dx||dy)?Math.sin(_t/95)*2:0;const p=this.points.reduce((a,b)=>Phaser.Math.Distance.Between(a.x,a.y,this.player.x,this.player.y)<Phaser.Math.Distance.Between(b.x,b.y,this.player.x,this.player.y)?a:b);this.target=Math.hypot(p.x-this.player.x,p.y-this.player.y)<155?p.id:'';onNear(this.target?p.name:'');this.prompt.setVisible(!!this.target).setPosition(p.x,p.y-87).setText(p.name+'  ·  E 互動');if(_t-lastMapPaint>100){lastMapPaint=_t;paintMap()}}
  }
  const game=new Phaser.Game({type:Phaser.AUTO,parent:container,width:container.clientWidth||1200,height:container.clientHeight||700,scale:{mode:Phaser.Scale.RESIZE},backgroundColor:'#0c1821',fps:{forceSetTimeOut:true,target:60},scene:Lab});
  const resize=new ResizeObserver(()=>game.scale.resize(container.clientWidth,container.clientHeight));resize.observe(container);
- return {destroy:()=>{resize.disconnect();active=undefined;game.destroy(true)},setRoom:n=>{room=Math.min(n,4);if(active){active.player.setPosition(start.x,start.y);active.drawRoom()}},setLocked:v=>{locked=v;for(const d of Object.keys(held) as Direction[])held[d]=false;if(active?.input.keyboard){active.input.keyboard.resetKeys();active.input.keyboard.enabled=!v}},setProgress:(v,s)=>{solved=v;seen=s;active?.drawRoom()},setProfile:(v,n)=>{gender=v;seed=n;active?.drawPlayer();active?.drawRoom()},playEscape:done=>{active?.playEscape(done)},interact,left:v=>{held.left=v},right:v=>{held.right=v},up:v=>{held.up=v},down:v=>{held.down=v}};
+ return {destroy:()=>{resize.disconnect();active=undefined;game.destroy(true);mapCanvas.remove();container.style.position=priorPosition},setRoom:n=>{room=Math.min(n,4);if(active){active.resetEscape();active.player.setPosition(start.x,start.y);active.drawRoom()}},setLocked:v=>{locked=v;for(const d of Object.keys(held) as Direction[])held[d]=false;if(active?.input.keyboard){active.input.keyboard.resetKeys();active.input.keyboard.enabled=!v}},setProgress:(v,s)=>{solved=v;seen=s;active?.drawRoom()},setProfile:(v,n)=>{gender=v;seed=n;active?.drawPlayer();active?.drawRoom()},playEscape:done=>{active?.playEscape(done)},resetEscape:()=>{active?.resetEscape()},interact,left:v=>{held.left=v},right:v=>{held.right=v},up:v=>{held.up=v},down:v=>{held.down=v}};
 }
