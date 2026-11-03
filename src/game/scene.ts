@@ -5,18 +5,28 @@ export type Direction='left'|'right'|'up'|'down';
 export type WorldHandle={destroy:()=>void;setRoom:(n:number)=>void;setLocked:(v:boolean)=>void;setProgress:(v:boolean,s:string[])=>void;setProfile:(gender:string,seed:number)=>void;playEscape:(done:()=>void)=>void;resetEscape:()=>void;interact:()=>void;left:(v:boolean)=>void;right:(v:boolean)=>void;up:(v:boolean)=>void;down:(v:boolean)=>void};
 export function createWorld(container:HTMLElement,onInteract:(id:string)=>void,onNear:(name:string)=>void):WorldHandle{
  let room=0,locked=true,solved=false,seed=1,gender='male',seen:string[]=[],active:Lab|undefined;
- // A non-interactive HUD overlay: only required objectives, decoder and exit appear.
+ // Optional map overlay: closed by default so it cannot cover gameplay UI.
  const mapCanvas=document.createElement('canvas');
  mapCanvas.width=320;mapCanvas.height=230;
  mapCanvas.setAttribute('aria-label','小地圖：僅顯示玩家、破譯機台及安全門');
- mapCanvas.style.cssText='position:absolute;top:8px;right:8px;width:min(82px,18vw);height:auto;z-index:15;pointer-events:none;border-radius:7px;box-shadow:0 3px 10px #0007;';
+ mapCanvas.style.cssText='position:absolute;top:43px;right:8px;width:min(82px,18vw);height:auto;z-index:2;pointer-events:none;border-radius:7px;box-shadow:0 3px 10px #0007;display:none;';
  const priorPosition=container.style.position;
  if(getComputedStyle(container).position==='static')container.style.position='relative';
+ const mapToggle=document.createElement('button');
+ mapToggle.type='button';
+ mapToggle.textContent='地圖';
+ mapToggle.setAttribute('aria-label','顯示小地圖');
+ mapToggle.setAttribute('aria-expanded','false');
+ mapToggle.style.cssText='position:absolute;top:6px;right:8px;z-index:3;width:40px;height:30px;padding:0;border:1px solid #6c9ba6;border-radius:7px;background:#102633;color:#f2ffff;font:600 12px system-ui;cursor:pointer;touch-action:manipulation;';
+ let mapOpen=false;
+ mapToggle.addEventListener('pointerdown',event=>event.stopPropagation());
+ mapToggle.addEventListener('click',event=>{event.stopPropagation();mapOpen=!mapOpen;mapCanvas.style.display=mapOpen?'block':'none';mapToggle.textContent=mapOpen?'關閉':'地圖';mapToggle.setAttribute('aria-expanded',String(mapOpen));mapToggle.setAttribute('aria-label',mapOpen?'隱藏小地圖':'顯示小地圖');if(mapOpen)paintMap();});
  container.appendChild(mapCanvas);
+ container.appendChild(mapToggle);
  const ctx=mapCanvas.getContext('2d');
  let lastMapPaint=0;
  const paintMap=()=>{
-  if(!ctx||!active)return;
+  if(!ctx||!active||!mapOpen)return;
   const w=mapCanvas.width,h=mapCanvas.height,pad=12,top=33,sx=(w-2*pad)/WIDTH,sy=(h-top-pad)/HEIGHT;
   ctx.clearRect(0,0,w,h);ctx.fillStyle='rgba(6,19,30,.93)';ctx.fillRect(0,0,w,h);
   ctx.fillStyle='#b9e8e3';ctx.font='bold 19px system-ui';ctx.fillText('MAP '+String(room+1).padStart(2,'0')+'/05',pad,24);
@@ -128,5 +138,5 @@ export function createWorld(container:HTMLElement,onInteract:(id:string)=>void,o
  }
  const game=new Phaser.Game({type:Phaser.AUTO,parent:container,width:container.clientWidth||1200,height:container.clientHeight||700,scale:{mode:Phaser.Scale.RESIZE},backgroundColor:'#0c1821',fps:{forceSetTimeOut:true,target:60},scene:Lab});
  const resize=new ResizeObserver(()=>game.scale.resize(container.clientWidth,container.clientHeight));resize.observe(container);
- return {destroy:()=>{resize.disconnect();active=undefined;game.destroy(true);mapCanvas.remove();container.style.position=priorPosition},setRoom:n=>{room=Math.min(n,4);if(active){active.resetEscape();active.player.setPosition(start.x,start.y);active.drawRoom()}},setLocked:v=>{locked=v;for(const d of Object.keys(held) as Direction[])held[d]=false;if(active?.input.keyboard){active.input.keyboard.resetKeys();active.input.keyboard.enabled=!v}},setProgress:(v,s)=>{solved=v;seen=s;active?.drawRoom()},setProfile:(v,n)=>{gender=v;seed=n;active?.drawPlayer();active?.drawRoom()},playEscape:done=>{active?.playEscape(done)},resetEscape:()=>{active?.resetEscape()},interact,left:v=>{held.left=v},right:v=>{held.right=v},up:v=>{held.up=v},down:v=>{held.down=v}};
+ return {destroy:()=>{resize.disconnect();active=undefined;game.destroy(true);mapCanvas.remove();mapToggle.remove();container.style.position=priorPosition},setRoom:n=>{room=Math.min(n,4);if(active){active.resetEscape();active.player.setPosition(start.x,start.y);active.drawRoom()}},setLocked:v=>{locked=v;for(const d of Object.keys(held) as Direction[])held[d]=false;if(active?.input.keyboard){active.input.keyboard.resetKeys();active.input.keyboard.enabled=!v}},setProgress:(v,s)=>{solved=v;seen=s;active?.drawRoom()},setProfile:(v,n)=>{gender=v;seed=n;active?.drawPlayer();active?.drawRoom()},playEscape:done=>{active?.playEscape(done)},resetEscape:()=>{active?.resetEscape()},interact,left:v=>{held.left=v},right:v=>{held.right=v},up:v=>{held.up=v},down:v=>{held.down=v}};
 }
