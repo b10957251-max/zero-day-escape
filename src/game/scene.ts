@@ -7,9 +7,9 @@ export function createWorld(container:HTMLElement,onInteract:(id:string)=>void,o
  let room=0,locked=true,solved=false,seed=1,gender='male',seen:string[]=[],active:Lab|undefined;
  // A non-interactive HUD overlay: only required objectives, decoder and exit appear.
  const mapCanvas=document.createElement('canvas');
- mapCanvas.width=440;mapCanvas.height=344;
+ mapCanvas.width=320;mapCanvas.height=230;
  mapCanvas.setAttribute('aria-label','小地圖：僅顯示玩家、破譯機台及安全門');
- mapCanvas.style.cssText='position:absolute;top:12px;right:12px;width:min(210px,37vw);height:auto;z-index:15;pointer-events:none;border-radius:12px;box-shadow:0 5px 20px #0008;';
+ mapCanvas.style.cssText='position:absolute;top:8px;right:8px;width:min(82px,18vw);height:auto;z-index:15;pointer-events:none;border-radius:7px;box-shadow:0 3px 10px #0007;';
  const priorPosition=container.style.position;
  if(getComputedStyle(container).position==='static')container.style.position='relative';
  container.appendChild(mapCanvas);
@@ -17,9 +17,9 @@ export function createWorld(container:HTMLElement,onInteract:(id:string)=>void,o
  let lastMapPaint=0;
  const paintMap=()=>{
   if(!ctx||!active)return;
-  const w=mapCanvas.width,h=mapCanvas.height,pad=17,top=48,sx=(w-2*pad)/WIDTH,sy=(h-top-pad)/HEIGHT;
+  const w=mapCanvas.width,h=mapCanvas.height,pad=12,top=33,sx=(w-2*pad)/WIDTH,sy=(h-top-pad)/HEIGHT;
   ctx.clearRect(0,0,w,h);ctx.fillStyle='rgba(6,19,30,.93)';ctx.fillRect(0,0,w,h);
-  ctx.fillStyle='#b9e8e3';ctx.font='bold 23px system-ui';ctx.fillText('地圖  '+String(room+1).padStart(2,'0')+' / 05',pad,31);
+  ctx.fillStyle='#b9e8e3';ctx.font='bold 19px system-ui';ctx.fillText('MAP '+String(room+1).padStart(2,'0')+'/05',pad,24);
   ctx.fillStyle='#122e3b';ctx.fillRect(pad,top,w-pad*2,h-top-pad);
   ctx.strokeStyle='#527581';ctx.lineWidth=2;ctx.strokeRect(pad,top,w-pad*2,h-top-pad);
   ctx.fillStyle='#55717e';for(const wall of walls(room))ctx.fillRect(pad+wall.x*sx,top+wall.y*sy,Math.max(2,wall.w*sx),Math.max(2,wall.h*sy));
@@ -29,11 +29,7 @@ export function createWorld(container:HTMLElement,onInteract:(id:string)=>void,o
    else if(point.kind==='door')marker(point.x,point.y,solved?'#67e8a3':'#ffb66e',8);
   }
   marker(active.player.x,active.player.y,'#ffffff',8);
-  // Legend: only player, decoder terminal, and safety door are visible.
-  ctx.font='16px system-ui';ctx.fillStyle='#d3e2e5';ctx.fillText('● 玩家      ● 破譯機台      ● 安全門',pad,h-3);
-  ctx.fillStyle='#ffffff';ctx.fillRect(pad+1,h-16,7,7);
-  ctx.fillStyle='#59c8ff';ctx.fillRect(pad+110,h-16,7,7);
-  ctx.fillStyle=solved?'#67e8a3':'#ffb66e';ctx.fillRect(pad+263,h-16,7,7);
+  // Compact minimap: no legend; white=player, blue=terminal, orange/green=door.
  };
 
  const held={left:false,right:false,up:false,down:false};
