@@ -27,8 +27,8 @@ function App(){
  useEffect(()=>{world.current?.setProgress(save.solved,save.seen.filter(k=>k.startsWith(save.level+':')).map(k=>k.split(':')[1]))},[save.level,save.solved,save.seen]);
  useEffect(()=>{world.current?.setLocked(modal!=='none')},[modal]);
  useEffect(()=>{if(modal==='lobby'||save.finished||!save.started)return;const t=setInterval(()=>setSave(s=>({...s,seconds:s.seconds+1})),1000);return()=>clearInterval(t)},[modal,save.finished,save.started]);
- const reset=()=>{setSave({...fresh(),name:save.name,gender:save.gender});setAnswer('');setMessage('');setNear('');setModal('lobby');world.current?.setRoom(0)};
- const lobby=()=>setModal('lobby');
+ const reset=()=>{world.current?.resetEscape();setSave({...fresh(),name:save.name,gender:save.gender});setAnswer('');setMessage('');setNear('');setModal('lobby');world.current?.setRoom(0)};
+ const lobby=()=>{world.current?.resetEscape();setModal('lobby')};
  const notes=()=>{if(modal==='notes')return;returnView.current=modal;setModal('notes')};
  const fullscreen=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.querySelector('.shell')?.requestFullscreen()}catch{show('全螢幕提示','此瀏覽器未支援全螢幕，建議將手機橫放遊玩。')}};
  const time=`${String(Math.floor(save.seconds/60)).padStart(2,'0')}:${String(save.seconds%60).padStart(2,'0')}`;
