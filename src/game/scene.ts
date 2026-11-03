@@ -9,7 +9,8 @@ export function createWorld(container:HTMLElement,onInteract:(id:string)=>void,o
  const mapCanvas=document.createElement('canvas');
  mapCanvas.width=320;mapCanvas.height=230;
  mapCanvas.setAttribute('aria-label','小地圖：僅顯示玩家、破譯機台及安全門');
- mapCanvas.style.cssText='position:absolute;top:43px;right:8px;width:min(82px,18vw);height:auto;z-index:2;pointer-events:none;border-radius:7px;box-shadow:0 3px 10px #0007;display:none;';
+ mapCanvas.className='game-minimap';
+ mapCanvas.style.cssText='position:absolute;top:43px;right:8px;width:180px;max-width:calc(100% - 16px);height:130px;z-index:2;pointer-events:none;border-radius:7px;box-shadow:0 3px 10px #0007;display:none;';
  const priorPosition=container.style.position;
  if(getComputedStyle(container).position==='static')container.style.position='relative';
  const mapToggle=document.createElement('button');
