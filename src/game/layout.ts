@@ -19,7 +19,7 @@ export function walls(room:number):Rect[]{
 export function blocked(x:number,y:number,room:number,pad=30){return x<65||y<65||x>WIDTH-65||y>HEIGHT-65||walls(room).some(r=>x>r.x-pad&&x<r.x+r.w+pad&&y>r.y-pad&&y<r.y+r.h+pad)}
 export function placements(seed:number,room:number,count:number):Position[]{
  let n=(seed+room*7919)>>>0;const rand=()=>{n=(Math.imul(1664525,n)+1013904223)>>>0;return n/4294967296};
- const pool:Position[]=[];for(let y=250;y<1600;y+=270)for(let x=250;x<2250;x+=270)if(!blocked(x,y,room,115)&&Math.hypot(x-1200,y-350)>150&&Math.hypot(x-2220,y-220)>150&&Math.hypot(x-1200,y-1550)>150)pool.push({x,y});
+ const pool:Position[]=[];for(let y=170;y<1650;y+=135)for(let x=170;x<2260;x+=135)if(!blocked(x,y,room,75)&&Math.hypot(x-1200,y-350)>150&&Math.hypot(x-2220,y-220)>150&&Math.hypot(x-1200,y-1550)>150)pool.push({x,y});
  for(let i=pool.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]]}const chosen:Position[]=[];
  for(const [qx,qy] of [[0,0],[1,0],[0,1],[1,1]]){const i=pool.findIndex(p=>Number(p.x>=WIDTH/2)===qx&&Number(p.y>=HEIGHT/2)===qy);if(i>=0)chosen.push(...pool.splice(i,1));}
  const result=[...chosen,...pool].slice(0,count);for(let i=result.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[result[i],result[j]]=[result[j],result[i]]}return result;
